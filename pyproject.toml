@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zero-knowledge-location-exposure-engine"
+version = "2.0.0"
+description = "ZK-ContactTrace: Spatial Geohash Zero-Knowledge Exposure Notification Engine"
+readme = "README.md"
+authors = [{ name = "Dr. Abu Suraih Sakhri", email = "abusuraih@example.com" }]
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Security/Cryptography",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+zero-knowledge-location-exposure-engine = "zk_contact_trace.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-engine"
+Repository = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-engine.git"
