@@ -25,3 +25,6 @@ zero-knowledge-location-exposure-engine = "zk_contact_trace.cli:main"
 [project.urls]
 Homepage = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-engine"
 Repository = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-engine.git"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

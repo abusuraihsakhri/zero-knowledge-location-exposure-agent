@@ -3,12 +3,13 @@ Automated Pytest Test Suite for Zero Knowledge Location Exposure Agent.
 Domain: Clinical & Biomedical AI
 Standard: CAP / CLSI / ISO Standards
 """
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import pytest
-from agents.base import PHIGuard, AuditLogger, SecurityException
+from agents.base import PHIGuard, AuditLogger, SecurityException, AuditTrail
 from agents.models import SystemTaskPayload, UrgencyLevel, SystemIntegrityStatus
 from agents.workers import InvariantQCWorker, SafetyEscalationWorker, ProtocolConformanceWorker
 from agents.supervisor import SystemSupervisor
@@ -20,7 +21,7 @@ def test_phi_guard_enforcement():
         PHIGuard.assert_no_phi("Patient MRN-994827 blood culture positive for Staphylococcus")
 
     # Clean text passes
-    PHIGuard.assert_no_phi("Analytical assay specimen KEY-001 optimal")
+    PHIGuard.assert_no_phi("Analytical assay specimen KEY-01 optimal")
 
 
 def test_specialized_workers():
@@ -63,3 +64,69 @@ def test_supervisor_consensus_and_audit():
     assert main(["audit", "--task-id", "CLI-TEST-01"]) == 0
     assert main(["chat", "Explain", "specifications"]) == 0
     assert main(["verify-audit"]) == 0
+
+
+# =============================================================================
+# SECURITY TESTS
+# =============================================================================
+
+def test_audit_trail_requires_secret_key():
+    """AuditTrail should raise SecurityException when no key is provided."""
+    # Temporarily remove the env var
+    original_key = os.environ.pop("AUDIT_SECRET_KEY", None)
+    try:
+        with pytest.raises(SecurityException, match="AUDIT_SECRET_KEY environment variable is required"):
+            AuditTrail()
+    finally:
+        if original_key:
+            os.environ["AUDIT_SECRET_KEY"] = original_key
+
+
+def test_audit_trail_rejects_short_key():
+    """AuditTrail should reject keys shorter than 32 characters."""
+    with pytest.raises(SecurityException, match="at least 32 characters"):
+        AuditTrail(secret_key="short-key")
+
+
+def test_audit_trail_accepts_valid_key():
+    """AuditTrail should accept keys of 32+ characters."""
+    trail = AuditTrail(secret_key="a" * 32)
+    assert trail.secret_key == b"a" * 32
+
+
+def test_audit_trail_hmac_integrity_verification():
+    """AuditTrail.verify_integrity() should detect tampered entries."""
+    trail = AuditTrail(secret_key="test-integrity-key-32chars-long-ok")
+    trail.log("test_actor", "test_tier", "TEST_EVENT", {"data": "value1"})
+    trail.log("test_actor", "test_tier", "TEST_EVENT", {"data": "value2"})
+
+    # Verify integrity passes for valid trail
+    assert trail.verify_integrity() is True
+
+    # Tamper with an entry
+    trail.logs[0]["payload_hash"] = "tampered_hash"
+
+    # Verify integrity fails after tampering
+    assert trail.verify_integrity() is False
+
+
+def test_phi_guard_redaction():
+    """PHIGuard.redact_phi should replace PHI with redacted markers."""
+    text_with_phi = "Patient John Doe, MRN-123456, SSN: 123-45-6789"
+    redacted = PHIGuard.redact_phi(text_with_phi)
+    assert "John Doe" not in redacted
+    assert "MRN-123456" not in redacted
+    assert "123-45-6789" not in redacted
+    assert "[REDACTED_IDENTIFIER]" in redacted
+
+
+def test_batch_path_traversal_protection():
+    """Batch command should reject paths outside the project directory."""
+    result = main(["batch", "-i", "../../../etc/passwd", "-o", "results.csv"])
+    assert result == 1  # Should fail with error
+
+
+def test_batch_output_path_traversal_protection():
+    """Batch command should reject output paths outside the project directory."""
+    result = main(["batch", "-i", "sample.csv", "-o", "../../../tmp/evil.csv"])
+    assert result == 1  # Should fail with error

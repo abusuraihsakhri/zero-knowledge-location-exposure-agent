@@ -5,6 +5,7 @@ import argparse
 import csv
 import json
 import sys
+from pathlib import Path
 from .models import FrontierPayload
 from .agents import ZKContactTraceCoordinator
 
@@ -69,7 +70,20 @@ def main(argv=None):
         return 0
 
     if args.command == "batch":
-        with open(args.input, mode="r", encoding="utf-8-sig") as f:
+        # Validate input path to prevent path traversal
+        input_path = Path(args.input).resolve()
+        output_path = Path(args.output).resolve()
+        cwd = Path.cwd().resolve()
+        if not str(input_path).startswith(str(cwd)):
+            print(f"Error: Input path must be within the project directory: {input_path}")
+            return 1
+        if not str(output_path).startswith(str(cwd)):
+            print(f"Error: Output path must be within the project directory: {output_path}")
+            return 1
+        if not input_path.exists():
+            print(f"Error: Input file not found: {input_path}")
+            return 1
+        with open(input_path, mode="r", encoding="utf-8-sig") as f:
             reader = csv.DictReader(f)
             fieldnames = list(reader.fieldnames or [])
             rows = list(reader)
@@ -93,11 +107,11 @@ def main(argv=None):
             row_dict["consensus_summary"] = dossier["consensus_summary"]
             out_rows.append(row_dict)
 
-        with open(args.output, mode="w", encoding="utf-8", newline="") as f:
+        with open(output_path, mode="w", encoding="utf-8", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=out_fields)
             writer.writeheader()
             writer.writerows(out_rows)
-        print(f"Processed {len(out_rows)} records -> {args.output}")
+        print(f"Processed {len(out_rows)} records -> {output_path}")
         return 0
 
     if args.command == "serve":
