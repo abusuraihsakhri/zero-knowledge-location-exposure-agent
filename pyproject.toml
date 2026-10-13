@@ -1,30 +1,40 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=69"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "zero-knowledge-location-exposure-engine"
-version = "2.0.0"
-description = "ZK-ContactTrace: Spatial Geohash Zero-Knowledge Exposure Notification Engine"
+version = "3.0.1"
+description = "Deterministic threshold evaluation demo and audit-chain utilities"
 readme = "README.md"
 authors = [{ name = "Dr. Abu Suraih Sakhri", email = "abusuraih@example.com" }]
 license = { text = "MIT" }
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
-    "Operating System :: OS Independent",
-    "Topic :: Security/Cryptography",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-]
 requires-python = ">=3.9"
-dependencies = []
+dependencies = ["pydantic>=2,<3"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Security/Cryptography"
+]
+
+[project.optional-dependencies]
+server = ["fastapi>=0.110,<1", "uvicorn>=0.28,<1"]
+dev = ["pytest>=8,<10", "httpx>=0.27,<1"]
 
 [project.scripts]
 zero-knowledge-location-exposure-engine = "zk_contact_trace.cli:main"
+location-exposure-console = "cli:main"
 
 [project.urls]
-Homepage = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-engine"
-Repository = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-engine.git"
+Homepage = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-agent"
+Repository = "https://github.com/abusuraihsakhri/zero-knowledge-location-exposure-agent"
+
+[tool.setuptools]
+py-modules = ["cli", "enrichment", "simulator", "zk_contact_trace_app"]
+
+[tool.setuptools.packages.find]
+include = ["agents*", "zk_contact_trace*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
