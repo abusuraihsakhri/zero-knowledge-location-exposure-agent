@@ -1,40 +1,38 @@
-name: Zero Knowledge Location Exposure Engine CI/CD & Security Verification
-
+name: Test and security checks
 on:
   push:
     branches: [ master, main ]
   pull_request:
     branches: [ master, main ]
 
+permissions:
+  contents: read
+
 jobs:
-  test-and-audit:
+  tests:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
-
+    env:
+      AUDIT_SECRET_KEY: ci-only-test-key-not-for-production-0123456789
+      API_ACCESS_TOKEN: ci-only-api-access-token
     steps:
-    - uses: actions/checkout@v4
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
-
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install fastapi uvicorn pydantic pytest
-
-    - name: Run Pytest Suite
-      run: |
-        pytest -v
-
-    - name: Security SAST & Zero-PHI Audit
-      run: |
-        python -c "
-        from agents.base import PHIGuard, AuditLogger
-        import pytest
-        assert AuditLogger.verify_integrity() is True
-        print('Security & Zero-PHI Audit Passed!')
-        "
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install project and test dependencies
+        run: python -m pip install -e ".[server,dev]"
+      - name: Compile Python modules
+        run: python -m compileall -q agents zk_contact_trace cli.py enrichment.py
+      - name: Run Python tests
+        run: python -m pytest -q
+      - name: Check HMAC audit integrity
+        run: |
+          python -c "from agents.base import AuditTrail; a=AuditTrail(); a.log('ci','test','INTEGRITY',{'ok': True}); assert a.verify_integrity()"
+      - name: Check installed command
+        run: location-exposure-console audit --task-id CI-TEST --target SYNTHETIC-001 --primary 3
+      - name: Check browser engine
+        run: node --test web/logic.test.mjs

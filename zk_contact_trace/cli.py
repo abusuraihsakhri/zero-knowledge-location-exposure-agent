@@ -12,6 +12,17 @@ from .agents import ZKContactTraceCoordinator
 coordinator = ZKContactTraceCoordinator()
 
 
+
+def _parse_csv_bool(value):
+    """Parse CSV boolean fields explicitly; bool('False') is True in Python."""
+    normalized = str(value if value is not None else "").strip().lower()
+    if normalized in ("", "0", "false", "no", "n"):
+        return False
+    if normalized in ("1", "true", "yes", "y"):
+        return True
+    raise ValueError(f"Invalid is_critical_flag: {value!r}. Use true or false.")
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(prog="zero-knowledge-location-exposure-agent", description="ZK-ContactTrace: Spatial Geohash Zero-Knowledge Exposure Notification Agent")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -74,10 +85,10 @@ def main(argv=None):
         input_path = Path(args.input).resolve()
         output_path = Path(args.output).resolve()
         cwd = Path.cwd().resolve()
-        if not str(input_path).startswith(str(cwd)):
+        if not input_path.is_relative_to(cwd):
             print(f"Error: Input path must be within the project directory: {input_path}")
             return 1
-        if not str(output_path).startswith(str(cwd)):
+        if not output_path.is_relative_to(cwd):
             print(f"Error: Output path must be within the project directory: {output_path}")
             return 1
         if not input_path.exists():
@@ -88,24 +99,28 @@ def main(argv=None):
             fieldnames = list(reader.fieldnames or [])
             rows = list(reader)
 
-        out_fields = fieldnames + ["overall_status", "total_alerts", "critical_count", "consensus_summary"]
+        out_fields = list(dict.fromkeys(fieldnames + ["overall_status", "total_alerts", "critical_count", "consensus_summary"]))
         out_rows = []
-        for r in rows:
-            payload = FrontierPayload(
-                task_id=r.get("task_id", "TASK-01"),
-                target_identifier=r.get("target_identifier", "TARGET-01"),
-                primary_metric=float(r.get("primary_metric", 15.0)),
-                secondary_metric=float(r.get("secondary_metric", 5.0)),
-                status_descriptor=r.get("status_descriptor", "NOMINAL"),
-                is_critical_flag=bool(r.get("is_critical_flag", False)),
-            )
-            dossier = coordinator.process(payload)
-            row_dict = dict(r)
-            row_dict["overall_status"] = dossier["overall_status"]
-            row_dict["total_alerts"] = dossier["total_alerts"]
-            row_dict["critical_count"] = dossier["critical_count"]
-            row_dict["consensus_summary"] = dossier["consensus_summary"]
-            out_rows.append(row_dict)
+        try:
+            for r in rows:
+                payload = FrontierPayload(
+                    task_id=r.get("task_id", "TASK-01"),
+                    target_identifier=r.get("target_identifier", "TARGET-01"),
+                    primary_metric=float(r.get("primary_metric", 15.0)),
+                    secondary_metric=float(r.get("secondary_metric", 5.0)),
+                    status_descriptor=r.get("status_descriptor", "NOMINAL"),
+                    is_critical_flag=_parse_csv_bool(r.get("is_critical_flag", False)),
+                )
+                dossier = coordinator.process(payload)
+                row_dict = dict(r)
+                row_dict["overall_status"] = dossier["overall_status"]
+                row_dict["total_alerts"] = dossier["total_alerts"]
+                row_dict["critical_count"] = dossier["critical_count"]
+                row_dict["consensus_summary"] = dossier["consensus_summary"]
+                out_rows.append(row_dict)
+        except (ValueError, TypeError) as exc:
+            print(f"Error: Invalid CSV input: {exc}")
+            return 1
 
         with open(output_path, mode="w", encoding="utf-8", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=out_fields)
